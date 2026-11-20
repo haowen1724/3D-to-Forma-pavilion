@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pavilion Studio</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #6b6b6b; --line: #e2e2e2;
+    --accent: #0696d7; --ok: #137333; --warn: #b26a00; --err: #c5221f;
+    --chip: #f4f4f5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 13px/1.5 "Artifakt Element", -apple-system, "Segoe UI", sans-serif;
+    color: var(--fg); background: var(--bg);
+  }
+  header { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  header p { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
+  nav { display: flex; border-bottom: 1px solid var(--line); }
+  nav button {
+    flex: 1; padding: 8px 4px; border: 0; background: none; cursor: pointer;
+    font: inherit; font-size: 12px; color: var(--muted); border-bottom: 2px solid transparent;
+  }
+  nav button[aria-selected="true"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+  main { padding: 12px 14px 28px; }
+  section[hidden] { display: none; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; }
+  h2:first-child { margin-top: 0; }
+  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  input[type="number"], input[type="text"], textarea, select {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px;
+    font: inherit; background: #fff; color: var(--fg);
+  }
+  textarea { min-height: 120px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; }
+  button.act {
+    padding: 7px 12px; border: 1px solid var(--line); border-radius: 4px; background: #fff;
+    font: inherit; cursor: pointer;
+  }
+  button.act:hover { border-color: var(--fg); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(.94); }
+  button.act:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row > * { flex: 1; }
+  .row.tight { gap: 6px; }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .chip { background: var(--chip); border-radius: 10px; padding: 1px 8px; font-size: 11px; color: var(--muted); }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line);
+  }
+  ul.list li.sel { background: #f0f8fd; }
+  ul.list .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ul.list .xs { font-size: 11px; color: var(--muted); }
+  .msg { margin-top: 10px; padding: 8px 10px; border-radius: 4px; font-size: 12px; white-space: pre-wrap; }
+  .msg.ok { background: #e6f4ea; color: var(--ok); }
+  .msg.warn { background: #fef7e0; color: var(--warn); }
+  .msg.err { background: #fce8e6; color: var(--err); }
+  .hint { font-size: 11px; color: var(--muted); margin: 4px 0 0; }
+  pre.log { background: var(--chip); padding: 8px; border-radius: 4px; font-size: 10px; max-height: 220px; overflow: auto; margin: 0; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1c1e; --fg: #f2f2f2; --muted: #9a9a9e; --line: #38383c; --chip: #2a2a2e;
+    }
+    :root:not([data-theme="light"]) input, :root:not([data-theme="light"]) textarea,
+    :root:not([data-theme="light"]) select { background: #26262a; color: #f2f2f2; }
+    :root:not([data-theme="light"]) button.act { background: #26262a; color: #f2f2f2; }
+    :root:not([data-theme="light"]) ul.list li.sel { background: #10323f; }
+    :root:not([data-theme="light"]) .msg.ok { background: #16321f; color: #7ee2a8; }
+    :root:not([data-theme="light"]) .msg.warn { background: #3a2d10; color: #f5c66b; }
+    :root:not([data-theme="light"]) .msg.err { background: #3a1a18; color: #f49d97; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pavilion Studio</h1>
+  <p id="ctx">connecting to Forma…</p>
+</header>
+
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-tab="place">1 · Place</button>
+  <button role="tab" aria-selected="false" data-tab="edit">2 · Edit</button>
+  <button role="tab" aria-selected="false" data-tab="ai">3 · AI edit</button>
+  <button role="tab" aria-selected="false" data-tab="log">Log</button>
+</nav>
+
+<main>
+  <!-- ───────── 1 · PLACE ───────── -->
+  <section id="tab-place">
+    <h2>Load a GLB</h2>
+    <p class="hint">Your scan must be a <strong>.glb</strong> file (binary glTF). Convert the OBJ in Blender: File → Export → glTF 2.0 (.glb). Decimate heavy scans to roughly 50k–200k triangles first.</p>
+    <input type="file" id="file" accept=".glb,model/gltf-binary" />
+    <div class="row tight" style="margin-top:8px">
+      <div><label for="nm">Name in Forma</label><input type="text" id="nm" placeholder="Pavilion v1" /></div>
+    </div>
+    <div class="bar">
+      <button class="act" id="btn-preview">Preview only</button>
+      <button class="act primary" id="btn-place" disabled>Place in proposal</button>
+      <button class="act" id="btn-clearprev">Clear preview</button>
+    </div>
+    <p class="hint">“Preview only” draws the mesh with its own materials but it vanishes when you close this panel. “Place in proposal” creates a real element that is saved, shareable and measurable — but Forma keeps only basic geometry, so colours and textures are dropped.</p>
+    <div id="place-msg"></div>
+  </section>
+
+  <!-- ───────── 2 · EDIT ───────── -->
+  <section id="tab-edit" hidden>
+    <h2>Placed objects</h2>
+    <ul class="list" id="objects"></ul>
+    <p class="hint" id="obj-empty">Nothing placed yet from this panel.</p>
+
+    <h2>Transform</h2>
+    <div class="row tight">
+      <div><label for="tx">X (m)</label><input type="number" id="tx" step="0.5" value="0" /></div>
+      <div><label for="ty">Y (m)</label><input type="number" id="ty" step="0.5" value="0" /></div>
+      <div><label for="tz">Z (m)</label><input type="number" id="tz" step="0.5" value="0" /></div>
+    </div>
+    <div class="row tight" style="margin-top:8px">
+      <div><label for="rz">Rotate Z (°)</label><input type="number" id="rz" step="15" value="0" /></div>
+      <div><label for="sc">Scale</label><input type="number" id="sc" step="0.1" min="0.01" value="1" /></div>
+    </div>
+    <div class="bar">
+      <button class="act primary" id="btn-apply" disabled>Apply</button>
+      <button class="act" id="btn-dup" disabled>Duplicate</button>
+      <button class="act" id="btn-del" disabled>Delete</button>
+    </div>
+    <p class="hint">Forma has no “move element” call, so applying a transform removes the element and re-adds it at the new position. Its path changes; the geometry does not.</p>
+    <div id="edit-msg"></div>
+  </section>
+
+  <!-- ───────── 3 · AI EDIT ───────── -->
+  <section id="tab-ai" hidden>
+    <h2>Step A — brief your assistant</h2>
+    <p class="hint">Copy the brief below, paste it into ChatGPT (or Claude, or any assistant), and describe the change you want in your own words — “rotate the pavilion to face the courtyard and set three copies 6 m apart”.</p>
+    <div class="bar">
+      <button class="act primary" id="btn-copy">Copy brief + scene state</button>
+      <button class="act" id="btn-show">Show brief</button>
+    </div>
+    <pre class="log" id="brief" hidden></pre>
+
+    <h2>Step B — paste what it returns</h2>
+    <textarea id="ops" placeholder='{"ops":[{"op":"move","target":"Pavilion v1","x":4,"y":0,"rz":30}]}'></textarea>
+    <div class="bar">
+      <button class="act" id="btn-check">Check</button>
+      <button class="act primary" id="btn-run" disabled>Apply to model</button>
+    </div>
+    <p class="hint">Nothing reaches the model until you press Apply. Read the plain-language summary first — that reading is the point of the exercise, not a formality.</p>
+    <div id="ai-msg"></div>
+  </section>
+
+  <!-- ───────── LOG ───────── -->
+  <section id="tab-log" hidden>
+    <h2>Process log</h2>
+    <p class="hint">Every change this panel made, in order, with who asked for it. Export it and submit it with your drawings.</p>
+    <div class="bar">
+      <button class="act" id="btn-export">Export log (.md)</button>
+      <button class="act" id="btn-wipe">Clear</button>
+    </div>
+    <pre class="log" id="logview">—</pre>
+  </section>
+</main>
+
+<script type="module">
+import { Forma } from "https://esm.sh/forma-embedded-view-sdk@0.96.0/auto";
+
+/* ──────────────── state ──────────────── */
+const KEY_OBJ = "pavilion.objects";
+const KEY_LOG = "pavilion.log";
+let objects = load(KEY_OBJ, []);   // {name, urn, path, x, y, z, rz, sc}
+let logbook = load(KEY_LOG, []);
+let selected = null;
+let pendingGlb = null;             // {buffer, name}
+let pendingOps = null;
+let canEdit = false;
+
+function load(k, fb) { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+const $ = (id) => document.getElementById(id);
+
+function note(where, text, kind = "ok") {
+  $(where).innerHTML = `<div class="msg ${kind}">${text}</div>`;
+}
+function record(action, source, detail) {
+  logbook.push({ t: new Date().toISOString(), action, source, detail });
+  save(KEY_LOG, logbook);
+  drawLog();
+}
+
+/* ──────────────── matrix ──────────────── */
+// Column-major 4x4, metres. Rotation about Z, uniform scale.
+function matrix({ x = 0, y = 0, z = 0, rz = 0, sc = 1 }) {
+  const a = (rz * Math.PI) / 180, c = Math.cos(a) * sc, s = Math.sin(a) * sc;
+  return [c, s, 0, 0, -s, c, 0, 0, 0, 0, sc, 0, x, y, z, 1];
+}
+
+/* ──────────────── boot ──────────────── */
+try {
+  const pid = await Forma.getProjectId();
+  canEdit = await Forma.getCanEdit();
+  $("ctx").textContent = `${pid} · ${canEdit ? "edit access" : "view only — ask the project owner for edit access"}`;
+} catch (e) {
+  $("ctx").textContent = "not running inside Forma — open this panel from the Forma extension menu";
+}
+drawObjects(); drawLog();
+
+/* ──────────────── tabs ──────────────── */
+document.querySelectorAll('nav button').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('nav button').forEach((o) => o.setAttribute("aria-selected", String(o === b)));
+    ["place", "edit", "ai", "log"].forEach((t) => { $("tab-" + t).hidden = t !== b.dataset.tab; });
+    if (b.dataset.tab === "ai") renderBrief();
+  };
+});
+
+/* ──────────────── 1 · place ──────────────── */
+$("file").onchange = async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  pendingGlb = { buffer: await f.arrayBuffer(), name: f.name };
+  if (!$("nm").value) $("nm").value = f.name.replace(/\.glb$/i, "");
+  $("btn-place").disabled = !canEdit;
+  const mb = (pendingGlb.buffer.byteLength / 1048576).toFixed(1);
+  note("place-msg", `Loaded ${f.name} (${mb} MB).` + (mb > 40 ? " That is large — expect slow uploads; decimate the mesh." : ""), mb > 40 ? "warn" : "ok");
+};
+
+$("btn-preview").onclick = async () => {
+  if (!pendingGlb) return note("place-msg", "Pick a .glb file first.", "warn");
+  try {
+    await Forma.render.glb.update({ id: "preview", glb: pendingGlb.buffer });
+    note("place-msg", "Preview drawn in the scene with its own materials. It is not saved.", "ok");
+    record("preview GLB", "student", pendingGlb.name);
+  } catch (e) { note("place-msg", "Preview failed: " + e.message, "err"); }
+};
+
+$("btn-clearprev").onclick = async () => {
+  try { await Forma.render.glb.cleanup(); note("place-msg", "Preview cleared.", "ok"); } catch {}
+};
+
+$("btn-place").onclick = async () => {
+  if (!pendingGlb) return;
+  const name = $("nm").value.trim() || "Pavilion";
+  $("btn-place").disabled = true;
+  note("place-msg", "Uploading…", "warn");
+  try {
+    const { blobId } = await Forma.integrate.uploadFile({ data: pendingGlb.buffer });
+    const { urn } = await Forma.integrate.createElementV2({ representations: { volumeMesh: { blobId } } });
+    const t = { x: 0, y: 0, z: 0, rz: 0, sc: 1 };
+    const { path } = await Forma.elements.add({ urn, name, transform: matrix(t) });
+    objects.push({ name, urn, path, ...t });
+    save(KEY_OBJ, objects);
+    selected = objects.length - 1;
+    drawObjects();
+    note("place-msg", `Placed “${name}” at the project reference point. Switch to Edit to move it.`, "ok");
+    record("place element", "student", `${name} · ${pendingGlb.name}`);
+  } catch (e) {
+    note("place-msg", "Placing failed: " + e.message, "err");
+  } finally { $("btn-place").disabled = false; }
+};
+
+/* ──────────────── 2 · edit ──────────────── */
+function drawObjects() {
+  const ul = $("objects"); ul.innerHTML = "";
+  objects.forEach((o, i) => {
+    const li = document.createElement("li");
+    if (i === selected) li.className = "sel";
+    li.innerHTML = `<span class="nm">${o.name}</span>
+      <span class="xs">${o.x}, ${o.y}, ${o.z} m · ${o.rz}° · ×${o.sc}</span>`;
+    li.onclick = () => { selected = i; drawObjects(); fill(o); };
+    ul.appendChild(li);
+  });
+  $("obj-empty").hidden = objects.length > 0;
+  const has = selected !== null && objects[selected];
+  ["btn-apply", "btn-dup", "btn-del"].forEach((b) => { $(b).disabled = !has || !canEdit; });
+  if (has) fill(objects[selected]);
+}
+function fill(o) {
+  $("tx").value = o.x; $("ty").value = o.y; $("tz").value = o.z;
+  $("rz").value = o.rz; $("sc").value = o.sc;
+}
+function read() {
+  return {
+    x: +$("tx").value || 0, y: +$("ty").value || 0, z: +$("tz").value || 0,
+    rz: +$("rz").value || 0, sc: +$("sc").value || 1,
+  };
+}
+
+// Re-place an element at a new transform (remove + add in one batch).
+async function retransform(obj, t, name) {
+  const res = await Forma.elements.batch({
+    operations: [
+      { type: "remove", path: obj.path },
+      { type: "add", urn: obj.urn, name: name ?? obj.name, transform: matrix(t) },
+    ],
+  });
+  const added = res.find((r) => r && r.path);
+  return added.path;
+}
+
+$("btn-apply").onclick = async () => {
+  const o = objects[selected], t = read();
+  try {
+    o.path = await retransform(o, t);
+    Object.assign(o, t); save(KEY_OBJ, objects); drawObjects();
+    note("edit-msg", "Moved.", "ok");
+    record("transform", "student", `${o.name} → ${t.x}, ${t.y}, ${t.z} m · ${t.rz}° · ×${t.sc}`);
+  } catch (e) { note("edit-msg", "Failed: " + e.message, "err"); }
+};
+
+$("btn-dup").onclick = async () => {
+  const o = objects[selected], t = { ...read(), x: read().x + 5 };
+  try {
+    const { path } = await Forma.elements.add({ urn: o.urn, name: o.name + " copy", transform: matrix(t) });
+    objects.push({ name: o.name + " copy", urn: o.urn, path, ...t });
+    save(KEY_OBJ, objects); selected = objects.length - 1; drawObjects();
+    note("edit-msg", "Duplicated 5 m along X.", "ok");
+    record("duplicate", "student", o.name);
+  } catch (e) { note("edit-msg", "Failed: " + e.message, "err"); }
+};
+
+$("btn-del").onclick = async () => {
+  const o = objects[selected];
+  try {
+    await Forma.elements.remove({ path: o.path });
+    objects.splice(selected, 1); selected = null; save(KEY_OBJ, objects); drawObjects();
+    note("edit-msg", `Removed “${o.name}”.`, "ok");
+    record("delete", "student", o.name);
+  } catch (e) { note("edit-msg", "Failed: " + e.message, "err"); }
+};
+
+/* ──────────────── 3 · AI edit ──────────────── */
+const SCHEMA = `You are helping a design student edit a 3D model inside Autodesk Forma.
+You cannot touch the model. You only return one JSON object, which the student
+reads and then applies by hand. No prose outside the JSON.
+
+Format:
+{"ops":[ ... ],"why":"one sentence, plain language"}
+
+Allowed ops — all distances in metres, angles in degrees, Z is up:
+  {"op":"move","target":"<object name>","x":0,"y":0,"z":0,"rz":0,"sc":1}
+      absolute placement; omit a key to keep the current value
+  {"op":"nudge","target":"<name>","dx":0,"dy":0,"dz":0,"drz":0}
+      relative change
+  {"op":"copy","target":"<name>","count":3,"dx":6,"dy":0,"drz":0}
+      count copies, each offset dx/dy/drz from the previous one
+  {"op":"delete","target":"<name>"}
+
+Rules: use only the object names listed in SCENE below. Keep it to at most 12 ops.
+Say in "why" what the move is for in design terms, not in code terms.`;
+
+function sceneState() {
+  return JSON.stringify({ objects: objects.map(({ name, x, y, z, rz, sc }) => ({ name, x, y, z, rz, sc })) }, null, 1);
+}
+function briefText() { return SCHEMA + "\n\nSCENE:\n" + sceneState() + "\n\nMY REQUEST: (write it here)"; }
+function renderBrief() { $("brief").textContent = briefText(); }
+
+$("btn-show").onclick = () => { renderBrief(); $("brief").hidden = !$("brief").hidden; };
+$("btn-copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(briefText()); note("ai-msg", "Copied. Paste it into ChatGPT and add your request at the end.", "ok"); }
+  catch { renderBrief(); $("brief").hidden = false; note("ai-msg", "Clipboard blocked — copy it from the box above.", "warn"); }
+};
+
+function find(name) {
+  const n = String(name || "").trim().toLowerCase();
+  return objects.findIndex((o) => o.name.toLowerCase() === n);
+}
+
+$("btn-check").onclick = () => {
+  pendingOps = null; $("btn-run").disabled = true;
+  let data;
+  try {
+    const raw = $("ops").value.trim().replace(/^```(json)?|```$/g, "");
+    data = JSON.parse(raw);
+  } catch (e) { return note("ai-msg", "That is not valid JSON. Ask the assistant for the JSON object only, with no explanation around it.", "err"); }
+  const ops = data?.ops;
+  if (!Array.isArray(ops) || !ops.length) return note("ai-msg", "No “ops” list found.", "err");
+  if (ops.length > 12) return note("ai-msg", `${ops.length} operations — more than this panel accepts. Ask for 12 or fewer.`, "err");
+
+  const lines = [], bad = [];
+  ops.forEach((o, i) => {
+    const idx = find(o.target);
+    if (idx < 0) { bad.push(`#${i + 1}: no object called “${o.target}”`); return; }
+    const c = objects[idx];
+    if (o.op === "move") lines.push(`move ${c.name} to ${o.x ?? c.x}, ${o.y ?? c.y}, ${o.z ?? c.z} m, ${o.rz ?? c.rz}°, ×${o.sc ?? c.sc}`);
+    else if (o.op === "nudge") lines.push(`shift ${c.name} by ${o.dx || 0}, ${o.dy || 0}, ${o.dz || 0} m and turn ${o.drz || 0}°`);
+    else if (o.op === "copy") {
+      const n = Math.min(+o.count || 1, 10);
+      lines.push(`make ${n} ${n === 1 ? "copy" : "copies"} of ${c.name}, each ${o.dx || 0}, ${o.dy || 0} m and ${o.drz || 0}° on from the last`);
+    } else if (o.op === "delete") lines.push(`delete ${c.name}`);
+    else bad.push(`#${i + 1}: unknown op “${o.op}”`);
+  });
+  if (bad.length) return note("ai-msg", "Cannot run this:\n• " + bad.join("\n• "), "err");
+
+  pendingOps = { ops, why: data.why || "" };
+  $("btn-run").disabled = !canEdit;
+  note("ai-msg", `This will:\n• ${lines.join("\n• ")}` + (data.why ? `\n\nIts reason: “${data.why}”` : "\n\nIt gave no reason — worth asking why before you accept it."), "warn");
+};
+
+$("btn-run").onclick = async () => {
+  if (!pendingOps) return;
+  $("btn-run").disabled = true;
+  const done = [];
+  try {
+    for (const o of pendingOps.ops) {
+      const i = find(o.target);
+      if (i < 0) continue;
+      const c = objects[i];
+      if (o.op === "delete") {
+        await Forma.elements.remove({ path: c.path });
+        objects.splice(i, 1); done.push(`deleted ${c.name}`);
+      } else if (o.op === "move" || o.op === "nudge") {
+        const t = o.op === "move"
+          ? { x: o.x ?? c.x, y: o.y ?? c.y, z: o.z ?? c.z, rz: o.rz ?? c.rz, sc: o.sc ?? c.sc }
+          : { x: c.x + (+o.dx || 0), y: c.y + (+o.dy || 0), z: c.z + (+o.dz || 0), rz: c.rz + (+o.drz || 0), sc: c.sc };
+        c.path = await retransform(c, t); Object.assign(c, t);
+        done.push(`${o.op} ${c.name}`);
+      } else if (o.op === "copy") {
+        const n = Math.min(+o.count || 1, 10);
+        let t = { x: c.x, y: c.y, z: c.z, rz: c.rz, sc: c.sc };
+        for (let k = 1; k <= n; k++) {
+          t = { ...t, x: t.x + (+o.dx || 0), y: t.y + (+o.dy || 0), rz: t.rz + (+o.drz || 0) };
+          const nm = `${c.name} ${k + 1}`;
+          const { path } = await Forma.elements.add({ urn: c.urn, name: nm, transform: matrix(t) });
+          objects.push({ name: nm, urn: c.urn, path, ...t });
+        }
+        done.push(`${n} copies of ${c.name}`);
+      }
+    }
+    save(KEY_OBJ, objects); selected = null; drawObjects();
+    note("ai-msg", "Applied: " + done.join(", ") + ".", "ok");
+    record("AI edit applied", "assistant → student approved", JSON.stringify(pendingOps));
+    pendingOps = null; $("ops").value = "";
+  } catch (e) {
+    note("ai-msg", "Stopped partway: " + e.message + "\nCheck the model before trying again.", "err");
+    save(KEY_OBJ, objects); drawObjects();
+    record("AI edit failed", "assistant → student approved", e.message);
+  }
+};
+
+/* ──────────────── log ──────────────── */
+function drawLog() {
+  $("logview").textContent = logbook.length
+    ? logbook.map((l) => `${l.t.slice(0, 19).replace("T", " ")}  [${l.source}]  ${l.action}: ${l.detail}`).join("\n")
+    : "—";
+}
+$("btn-export").onclick = () => {
+  const md = ["# Pavilion process log", "", `Exported ${new Date().toISOString().slice(0, 19).replace("T", " ")}`, "",
+    "| time | source | action | detail |", "| --- | --- | --- | --- |",
+    ...logbook.map((l) => `| ${l.t.slice(0, 19).replace("T", " ")} | ${l.source} | ${l.action} | ${String(l.detail).replace(/\|/g, "/")} |`)].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+  a.download = "pavilion-process-log.md"; a.click();
+};
+$("btn-wipe").onclick = () => { logbook = []; save(KEY_LOG, logbook); drawLog(); };
+</script>
+</body>
+</html>
