@@ -259,7 +259,7 @@ $("btn-place").onclick = async () => {
   note("place-msg", "Uploading…", "warn");
   try {
     const { blobId } = await Forma.integrateElements.uploadFile({ data: pendingGlb.buffer });
-    const { urn } = await Forma.integrateElements.createElementV2({ representations: { volumeMesh: { blobId } } });
+    const { urn } = await Forma.integrateElements.createElementV2({ representations: { volumeMesh: { type: "linked", blobId } } });
     const t = { x: 0, y: 0, z: await groundZ(0, 0), rz: 0, sc: 1 };
     const { path } = await Forma.elements.add({ urn, name, transform: matrix(t) });
     objects.push({ name, urn, path, ...t });
