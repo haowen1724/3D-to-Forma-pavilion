@@ -123,6 +123,7 @@
     </div>
     <div class="bar">
       <button class="act primary" id="btn-apply" disabled>Apply</button>
+      <button class="act" id="btn-pick" disabled>Pick point in scene</button>
       <button class="act" id="btn-dup" disabled>Duplicate</button>
       <button class="act" id="btn-del" disabled>Delete</button>
     </div>
@@ -163,7 +164,13 @@
 </main>
 
 <script type="module">
-import { Forma } from "https://esm.sh/forma-embedded-view-sdk@0.96.0/auto";
+let Forma = null;
+try {
+  ({ Forma } = await import("https://esm.sh/forma-embedded-view-sdk@0.96.0/auto"));
+} catch (e) {
+  document.getElementById("ctx").textContent =
+    "not running inside Forma — open this panel from the Forma extension menu";
+}
 
 /* ──────────────── state ──────────────── */
 const KEY_OBJ = "pavilion.objects";
@@ -195,8 +202,15 @@ function matrix({ x = 0, y = 0, z = 0, rz = 0, sc = 1 }) {
   return [c, s, 0, 0, -s, c, 0, 0, 0, 0, sc, 0, x, y, z, 1];
 }
 
+// Terrain height at a point, so objects sit on the ground instead of at sea level.
+async function groundZ(x, y) {
+  try { return Math.round((await Forma.terrain.getElevationAt({ x, y })) * 100) / 100; }
+  catch { return 0; }
+}
+
 /* ──────────────── boot ──────────────── */
 try {
+  if (!Forma) throw new Error("no Forma");
   const pid = await Forma.getProjectId();
   canEdit = await Forma.getCanEdit();
   $("ctx").textContent = `${pid} · ${canEdit ? "edit access" : "view only — ask the project owner for edit access"}`;
@@ -244,15 +258,15 @@ $("btn-place").onclick = async () => {
   $("btn-place").disabled = true;
   note("place-msg", "Uploading…", "warn");
   try {
-    const { blobId } = await Forma.integrate.uploadFile({ data: pendingGlb.buffer });
-    const { urn } = await Forma.integrate.createElementV2({ representations: { volumeMesh: { blobId } } });
-    const t = { x: 0, y: 0, z: 0, rz: 0, sc: 1 };
+    const { blobId } = await Forma.integrateElements.uploadFile({ data: pendingGlb.buffer });
+    const { urn } = await Forma.integrateElements.createElementV2({ representations: { volumeMesh: { blobId } } });
+    const t = { x: 0, y: 0, z: await groundZ(0, 0), rz: 0, sc: 1 };
     const { path } = await Forma.elements.add({ urn, name, transform: matrix(t) });
     objects.push({ name, urn, path, ...t });
     save(KEY_OBJ, objects);
     selected = objects.length - 1;
     drawObjects();
-    note("place-msg", `Placed “${name}” at the project reference point. Switch to Edit to move it.`, "ok");
+    note("place-msg", `Placed “${name}” at the project reference point, on the terrain (z = ${t.z} m). Switch to Edit and use “Pick point in scene” to move it where you want.`, "ok");
     record("place element", "student", `${name} · ${pendingGlb.name}`);
   } catch (e) {
     note("place-msg", "Placing failed: " + e.message, "err");
@@ -272,7 +286,7 @@ function drawObjects() {
   });
   $("obj-empty").hidden = objects.length > 0;
   const has = selected !== null && objects[selected];
-  ["btn-apply", "btn-dup", "btn-del"].forEach((b) => { $(b).disabled = !has || !canEdit; });
+  ["btn-apply", "btn-pick", "btn-dup", "btn-del"].forEach((b) => { $(b).disabled = !has || !canEdit; });
   if (has) fill(objects[selected]);
 }
 function fill(o) {
@@ -306,6 +320,17 @@ $("btn-apply").onclick = async () => {
     note("edit-msg", "Moved.", "ok");
     record("transform", "student", `${o.name} → ${t.x}, ${t.y}, ${t.z} m · ${t.rz}° · ×${t.sc}`);
   } catch (e) { note("edit-msg", "Failed: " + e.message, "err"); }
+};
+
+$("btn-pick").onclick = async () => {
+  note("edit-msg", "Click a point in the 3D scene…", "warn");
+  try {
+    const p = await Forma.designTool.getPoint();
+    if (!p) return note("edit-msg", "No point picked.", "warn");
+    const r = (v) => Math.round(v * 100) / 100;
+    $("tx").value = r(p.x); $("ty").value = r(p.y); $("tz").value = r(p.z);
+    note("edit-msg", "Point picked. Press Apply to move the object there.", "ok");
+  } catch (e) { note("edit-msg", "Pick failed: " + e.message, "err"); }
 };
 
 $("btn-dup").onclick = async () => {
